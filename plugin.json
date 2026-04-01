@@ -6,6 +6,7 @@
   "icon": "check-square",
   "tint": "100, 200, 120",
   "instructions": "instructions.md",
+  "aiKeywords": ["wrike", "task management", "project board", "sprint board"],
   "activationConditions": { "always": true },
   "settings": [
     {

@@ -123,6 +123,19 @@ curl -s http://127.0.0.1:3800/api/plugins/wrike/workflows
 curl -s http://127.0.0.1:3800/api/plugins/wrike/comments/recent
 ```
 
+### Opening in the Dashboard
+
+After creating, updating, or working with Wrike tasks, **always offer to open the Wrike tab in the dashboard**:
+
+```bash
+# Open the Wrike tab
+curl -s -X POST http://127.0.0.1:3800/api/ui/view-plugin \
+  -H "Content-Type: application/json" \
+  -d '{"plugin":"wrike"}'
+```
+
+After any create/update/delete operation, ask the user: "Want me to open the Wrike dashboard?"
+
 ### ADO-Wrike Sync
 
 To sync a Wrike task to Azure DevOps:
