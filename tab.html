@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="/plugins/sdk/devops-pilot-sdk.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 7px; height: 7px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--surface1); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--surface2); }
+  body { margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  /* ── Toolbar (matches backlog) ─── */
+  .toolbar {
+    display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 42px; flex-shrink: 0;
+    background: var(--mantle); border-bottom: 1px solid var(--surface0);
+  }
+  .toolbar-title { font-size: 14px; font-weight: 600; }
+  .conn-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .conn-dot.ok { background: var(--green); }
+  .conn-dot.err { background: var(--red); }
+  .conn-dot.pending { background: var(--yellow); }
+  .sep { width: 1px; height: 20px; background: var(--surface1); }
+  .spacer { flex: 1; }
+  .toolbar select {
+    padding: 5px 8px; background: var(--surface0); border: 1px solid var(--surface1);
+    border-radius: var(--radius); color: var(--text); font: 12px var(--font-ui); outline: none; max-width: 220px;
+  }
+  .toolbar select:focus { border-color: var(--accent); }
+  .lbl { font-size: 10px; color: var(--subtext0); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .user-name { font-size: 11px; color: var(--subtext0); }
+
+  /* ── Filter Bar ─── */
+  .filter-bar {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px; flex-shrink: 0;
+    border-bottom: 1px solid var(--surface0);
+  }
+  .search {
+    flex: 1; max-width: 280px; padding: 5px 10px; background: var(--surface0);
+    border: 1px solid var(--surface1); border-radius: var(--radius);
+    color: var(--text); font: 12px var(--font-ui); outline: none;
+  }
+  .search:focus { border-color: var(--accent); }
+  .fbtn {
+    padding: 5px 8px; background: var(--surface0); border: 1px solid var(--surface1);
+    border-radius: var(--radius); color: var(--subtext1); font: 11px var(--font-ui); cursor: pointer;
+  }
+  .fbtn:hover { border-color: var(--accent); color: var(--text); }
+  .fbtn.active { background: var(--accent); color: var(--crust); border-color: transparent; }
+  .folder-select {
+    padding: 5px 8px; background: var(--surface0); border: 1px solid var(--surface1);
+    border-radius: var(--radius); color: var(--text); font: 11px var(--font-ui); outline: none; max-width: 200px;
+  }
+  .folder-select:focus { border-color: var(--accent); }
+  .count { font-size: 10px; color: var(--subtext0); }
+
+  /* ── Task List ─── */
+  .task-list { flex: 1; overflow-y: auto; }
+  .task-row {
+    display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+    border-bottom: 1px solid var(--surface0); transition: background 0.1s; cursor: pointer; font-size: 13px;
+  }
+  .task-row:hover { background: var(--surface0); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot.Active { background: var(--blue); }
+  .dot.Completed { background: var(--green); }
+  .dot.Deferred { background: var(--overlay1); }
+  .dot.Cancelled { background: var(--red); }
+  .badge {
+    font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600; flex-shrink: 0;
+    white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis;
+    background: var(--surface2); color: var(--subtext0);
+  }
+  .task-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .task-folder {
+    font-size: 10px; color: var(--teal); flex-shrink: 0; max-width: 120px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .task-meta { font-size: 11px; color: var(--subtext0); flex-shrink: 0; white-space: nowrap; }
+  .task-actions { display: flex; gap: 4px; flex-shrink: 0; opacity: 0; transition: opacity 0.1s; }
+  .task-row:hover .task-actions { opacity: 1; }
+  .tbtn {
+    background: var(--surface1); border: 1px solid var(--overlay0); color: var(--subtext0);
+    padding: 2px 7px; border-radius: var(--radius); cursor: pointer; font-size: 10px; white-space: nowrap;
+  }
+  .tbtn:hover { border-color: var(--accent); color: var(--text); }
+
+  /* ── Loading indicator ─── */
+  .loading-bar { height: 2px; background: var(--accent); position: absolute; top: 0; left: 0; animation: loading 1.5s infinite; }
+  @keyframes loading { 0%{width:0%;left:0} 50%{width:60%;left:20%} 100%{width:0%;left:100%} }
+
+  /* ── Task Detail ─── */
+  .detail { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  .detail.active { display: flex; }
+  .detail-toolbar {
+    display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 38px;
+    border-bottom: 1px solid var(--surface0); background: var(--mantle); flex-shrink: 0;
+  }
+  .back-btn {
+    background: none; border: 1px solid var(--overlay0); color: var(--text); cursor: pointer;
+    font: 12px var(--font-ui); padding: 4px 10px; border-radius: var(--radius);
+  }
+  .back-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .detail-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+  .detail-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; line-height: 1.3; }
+  .detail-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .df-label { font-size: 10px; color: var(--overlay1); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .df-value { font-size: 13px; }
+  .detail-section { margin-bottom: 20px; }
+  .detail-section-title { font-size: 12px; font-weight: 600; color: var(--subtext1); margin-bottom: 8px; }
+  .detail-desc { font-size: 13px; color: var(--subtext1); line-height: 1.6; }
+  .detail-desc a { color: var(--accent); }
+  .detail-actions { display: flex; gap: 8px; margin-bottom: 20px; }
+  .dbtn { background: var(--surface1); border: 1px solid var(--overlay0); color: var(--text); padding: 5px 12px; border-radius: var(--radius); cursor: pointer; font: 12px var(--font-ui); }
+  .dbtn:hover { border-color: var(--accent); }
+  .dbtn.primary { background: var(--accent); color: var(--crust); border-color: transparent; }
+  .comment { padding: 10px; margin-bottom: 6px; background: var(--surface0); border-radius: var(--radius); }
+  .comment-author { font-size: 11px; font-weight: 600; color: var(--accent); }
+  .comment-date { font-size: 10px; color: var(--subtext0); margin-left: 8px; }
+  .comment-text { font-size: 12px; color: var(--subtext1); margin-top: 4px; line-height: 1.5; }
+
+  /* ── Board View (matches main app backlog board) ─── */
+  .board { display: none; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 12px; flex: 1; overflow-y: auto; }
+  .board.active { display: grid; }
+  .board-col {
+    background: var(--crust); border-radius: var(--radius-lg);
+    border: 1px solid var(--surface0); display: flex; flex-direction: column; min-height: 0;
+  }
+  .board-hdr {
+    padding: 10px 12px; font-size: 12px; font-weight: 600;
+    color: var(--subtext1); border-bottom: 1px solid var(--surface0);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .board-hdr .n {
+    background: var(--surface0); padding: 1px 7px; border-radius: 99px;
+    font-size: 11px; color: var(--subtext0); font-weight: 400;
+  }
+  .board-body { flex: 1; overflow-y: auto; padding: 6px; min-height: 60px; }
+  .board-body.drag-over { background: rgba(137,180,250,0.06); border-radius: var(--radius); }
+  .board-card {
+    padding: 10px; margin-bottom: 6px; background: var(--mantle);
+    border: 1px solid var(--surface0); border-radius: var(--radius);
+    cursor: grab; transition: all 0.12s;
+  }
+  .board-card:hover { border-color: var(--accent); background: var(--base); }
+  .board-card.dragging { opacity: 0.4; cursor: grabbing; }
+  .board-card-title { font-size: 12px; color: var(--text); margin: 3px 0; line-height: 1.35; word-break: break-word; overflow-wrap: break-word; }
+  .board-card-meta { font-size: 10px; color: var(--subtext0); display: flex; align-items: center; gap: 6px; }
+  .board-card-meta .badge { font-size: 8px; }
+  .view-toggle { display: flex; border: 1px solid var(--surface1); border-radius: var(--radius); overflow: hidden; }
+  .view-toggle button {
+    background: var(--surface0); border: none; color: var(--subtext0); padding: 4px 10px;
+    font: 11px var(--font-ui); cursor: pointer; border-right: 1px solid var(--surface1);
+  }
+  .view-toggle button:last-child { border-right: none; }
+  .view-toggle button.active { background: var(--accent); color: var(--crust); }
+
+  /* ── Detail: linked items, attachments ─── */
+  .linked-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+    border-radius: var(--radius); font-size: 12px; cursor: pointer;
+  }
+  .linked-item:hover { background: var(--surface0); }
+  .attachment { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: var(--surface0); border: 1px solid var(--overlay0); border-radius: var(--radius); font-size: 11px; margin: 2px 4px 2px 0; }
+
+  /* ── Folder Picker Modal ─── */
+  .picker-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100;
+    align-items: flex-start; justify-content: center; padding-top: 60px;
+  }
+  .picker-overlay.open { display: flex; }
+  .picker-modal {
+    background: var(--base); border: 1px solid var(--overlay0); border-radius: var(--radius-lg);
+    width: 400px; max-width: 90vw; max-height: 60vh; display: flex; flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+  }
+  .picker-search { padding: 12px 16px; border-bottom: 1px solid var(--overlay0); }
+  .picker-search input {
+    width: 100%; background: var(--surface0); border: 1px solid var(--overlay0); color: var(--text);
+    padding: 8px 12px; border-radius: var(--radius); font: 13px var(--font-ui); outline: none;
+  }
+  .picker-search input:focus { border-color: var(--accent); }
+  .picker-list { flex: 1; overflow-y: auto; }
+  .picker-item {
+    padding: 10px 16px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--surface0);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .picker-item:hover { background: var(--surface0); }
+  .picker-item.active { color: var(--accent); font-weight: 500; }
+  .picker-item .pi-count { font-size: 10px; color: var(--overlay1); margin-left: auto; }
+
+  .empty { text-align: center; color: var(--subtext0); padding: 40px 20px; font-size: 13px; line-height: 1.6; }
+  .setup { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 12px; padding: 40px; }
+  .setup h2 { margin: 0; }
+  .setup p { color: var(--subtext0); max-width: 400px; text-align: center; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div id="setupScreen" class="setup" style="display:none;">
+  <h2>Wrike</h2>
+  <p>Not configured. Go to Settings > Plugins > Wrike to add your access token.</p>
+</div>
+
+<div id="mainUI" style="display:none;flex-direction:column;height:100vh;">
+  <div class="toolbar">
+    <span class="toolbar-title">Wrike</span>
+    <div class="conn-dot" id="connDot"></div>
+    <div class="sep"></div>
+    <span class="lbl">Space</span>
+    <select id="spaceSelect" onchange="onSpaceChange()">
+      <option value="">All Tasks</option>
+    </select>
+    <div class="spacer"></div>
+    <button class="fbtn" onclick="openBpPicker()" style="font-size:11px;">Blueprints</button>
+    <button class="fbtn" onclick="openSyncModal()" style="font-size:11px;">Cross-Sync</button>
+    <span class="user-name" id="userName"></span>
+  </div>
+
+  <div class="filter-bar" id="filterBar">
+    <input class="search" type="text" placeholder="Search tasks..." id="taskSearch" oninput="filterTasks()">
+    <button class="fbtn" id="folderPickerBtn" onclick="openFolderPicker()" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">All folders</button>
+    <button class="fbtn" id="fMine" onclick="toggleMine()">My Tasks</button>
+    <select class="folder-select" id="statusFilter" onchange="setFilter(this.value)">
+      <option value="all">All Statuses</option>
+      <option value="Active">Active</option>
+      <option value="Completed">Completed</option>
+      <option value="Deferred">Deferred</option>
+      <option value="Cancelled">Cancelled</option>
+    </select>
+    <div class="spacer"></div>
+    <span class="count" id="taskCount"></span>
+    <div class="view-toggle">
+      <button class="active" id="vList" onclick="setView('list')" title="List View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg></button>
+      <button id="vBoard" onclick="setView('board')" title="Board View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/></svg></button>
+    </div>
+  </div>
+
+  <div class="task-list" id="listView" style="position:relative;">
+    <div class="empty">Select a space or use "All Tasks" to get started</div>
+  </div>
+
+  <div class="board" id="boardView"></div>
+
+  <!-- Folder Picker Modal -->
+  <div class="picker-overlay" id="folderPickerOverlay" onclick="if(event.target===this)closeFolderPicker()">
+    <div class="picker-modal">
+      <div class="picker-search"><input type="text" id="folderPickerInput" placeholder="Search folders..." oninput="filterFolderPicker()"></div>
+      <div class="picker-list" id="folderPickerList"></div>
+    </div>
+  </div>
+
+  <!-- Blueprint Picker Modal -->
+  <div class="picker-overlay" id="bpPickerOverlay" onclick="if(event.target===this)closeBpPicker()">
+    <div class="picker-modal" style="max-height:70vh;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--overlay0);display:flex;align-items:center;gap:8px;">
+        <span style="font-size:13px;font-weight:600;">Blueprints</span>
+        <div class="spacer"></div>
+        <button class="fbtn" onclick="askCreateBlueprint()" style="font-size:11px;">+ New Blueprint</button>
+      </div>
+      <div class="picker-search"><input type="text" id="bpPickerInput" placeholder="Search blueprints..." oninput="filterBpPicker()"></div>
+      <div class="picker-list" id="bpPickerList"></div>
+    </div>
+  </div>
+
+  <!-- Cross-Sync Modal -->
+  <div class="picker-overlay" id="syncOverlay" onclick="if(event.target===this)closeSyncModal()">
+    <div class="picker-modal" style="width:440px;">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--overlay0);font-weight:600;font-size:14px;">Cross-Sync: Wrike + Azure DevOps</div>
+      <div style="padding:12px 16px;">
+        <div class="picker-item" onclick="doSync(1)" style="border-radius:var(--radius);margin-bottom:4px;border:1px solid var(--surface0);">
+          <i data-lucide="plus-circle" style="width:18px;height:18px;flex-shrink:0;color:var(--accent);"></i>
+          <div><div style="font-weight:500;">Create in Both</div><div style="font-size:11px;color:var(--subtext0);">Create a new task in Wrike AND ADO, linked to each other</div></div>
+        </div>
+        <div class="picker-item" onclick="doSync(2)" style="border-radius:var(--radius);margin-bottom:4px;border:1px solid var(--surface0);">
+          <i data-lucide="arrow-right" style="width:18px;height:18px;flex-shrink:0;color:var(--blue);"></i>
+          <div><div style="font-weight:500;">Wrike to ADO</div><div style="font-size:11px;color:var(--subtext0);">Link an existing Wrike task to a new ADO work item</div></div>
+        </div>
+        <div class="picker-item" onclick="doSync(3)" style="border-radius:var(--radius);margin-bottom:4px;border:1px solid var(--surface0);">
+          <i data-lucide="arrow-left" style="width:18px;height:18px;flex-shrink:0;color:var(--green);"></i>
+          <div><div style="font-weight:500;">ADO to Wrike</div><div style="font-size:11px;color:var(--subtext0);">Link an existing ADO work item to a new Wrike task</div></div>
+        </div>
+        <div class="picker-item" onclick="doSync(4)" style="border-radius:var(--radius);margin-bottom:4px;border:1px solid var(--surface0);">
+          <i data-lucide="search" style="width:18px;height:18px;flex-shrink:0;color:var(--subtext0);"></i>
+          <div><div style="font-weight:500;">Check Sync Status</div><div style="font-size:11px;color:var(--subtext0);">See if a task already exists in both systems</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="detail" id="detailView">
+    <div class="detail-toolbar">
+      <button class="back-btn" onclick="closeDetail()">&#8592; Back</button>
+      <div class="spacer"></div>
+      <span id="detailId" style="font-size:11px;color:var(--overlay1);font-family:var(--font-mono);"></span>
+    </div>
+    <div class="detail-body" id="detailBody"></div>
+  </div>
+</div>
+
+<script>
+var API = '/api/plugins/wrike';
+var spaces=[], contactMap={}, folderMap={}, workflowStatuses=[];
+var tasks=[], filtered=[];
+var activeFilter='all', activeView='list', selectedFolderId='', selectedFolderName='All folders';
+var showMineOnly=false, myContactId='';
+var folderList=[]; // [{id,title,count}] for the picker
+
+async function init() {
+  var c = await doApi('GET','/config');
+  if (!c.configured) { document.getElementById('setupScreen').style.display='flex'; document.getElementById('mainUI').style.display='none'; return; }
+  document.getElementById('setupScreen').style.display='none';
+  document.getElementById('mainUI').style.display='flex';
+  await connect();
+}
+
+async function connect() {
+  setConn('pending');
+  var t = await doApi('GET','/test');
+  if (!t.ok) { setConn('err'); return; }
+  setConn('ok');
+  if (t.user) {
+    document.getElementById('userName').textContent=(t.user.firstName||'')+' '+(t.user.lastName||'');
+    myContactId = t.user.id || '';
+  }
+
+  // Load contacts for name resolution
+  var contacts = await doApi('GET','/contacts');
+  if (Array.isArray(contacts)) contacts.forEach(function(c){ contactMap[c.id]=(c.firstName||'')+(c.lastName?' '+c.lastName:''); });
+
+  // Load workflows for status names
+  var wf = await doApi('GET','/workflows');
+  if (Array.isArray(wf)) wf.forEach(function(w){ (w.customStatuses||[]).forEach(function(s){ workflowStatuses.push(s); }); });
+
+  // Load spaces
+  spaces = await doApi('GET','/spaces');
+  if (!Array.isArray(spaces)) spaces=[];
+  var sel = document.getElementById('spaceSelect');
+  sel.innerHTML = '<option value="">All Tasks</option>';
+  spaces.forEach(function(s){ sel.innerHTML += '<option value="'+s.id+'">'+esc(s.title)+'</option>'; });
+
+  // Load all tasks initially
+  await loadTasks();
+}
+
+function setConn(state) { document.getElementById('connDot').className='conn-dot '+state; }
+
+async function onSpaceChange() { await loadTasks(); }
+
+async function loadTasks() {
+  var spaceId = document.getElementById('spaceSelect').value;
+  document.getElementById('listView').innerHTML = '<div style="position:absolute;top:0;left:0;right:0;"><div class="loading-bar"></div></div><div class="empty">Loading tasks...</div>';
+
+  if (showMineOnly) {
+    // Fetch only my assigned tasks
+    var mineParams = '?limit=100';
+    if (spaceId) mineParams += '&spaceId=' + spaceId;
+    tasks = await doApi('GET', '/tasks/mine' + mineParams);
+  } else {
+    var params = '?limit=100';
+    if (spaceId) params += '&spaceId=' + spaceId;
+    tasks = await doApi('GET', '/tasks' + params);
+  }
+  if (!Array.isArray(tasks)) tasks = [];
+
+  // Build folder map from task parentIds and resolve folder names
+  folderMap = {};
+  var folderIds = [];
+  tasks.forEach(function(t) {
+    (t.parentIds || []).forEach(function(pid) {
+      if (!folderMap[pid]) { folderMap[pid] = { id: pid, title: pid }; folderIds.push(pid); }
+    });
+  });
+
+  // Try to resolve folder names (batch -- up to 100 IDs at once)
+  if (folderIds.length) {
+    var batchIds = folderIds.slice(0, 100).join(',');
+    var folderData = await doApi('GET', '/folders-by-ids?ids=' + batchIds);
+    if (Array.isArray(folderData)) {
+      folderData.forEach(function(f) { folderMap[f.id] = f; });
+    }
+  }
+
+  // Build folder list for picker (only folders that have tasks)
+  var folderCounts = {};
+  tasks.forEach(function(t) {
+    var fid = (t.parentIds && t.parentIds[0]) || '';
+    if (fid) folderCounts[fid] = (folderCounts[fid] || 0) + 1;
+  });
+  folderList = Object.keys(folderCounts).map(function(fid) {
+    return { id: fid, title: folderMap[fid] ? folderMap[fid].title : fid, count: folderCounts[fid] };
+  }).sort(function(a, b) { return b.count - a.count; });
+
+  selectedFolderId = '';
+  selectedFolderName = 'All folders';
+  document.getElementById('folderPickerBtn').textContent = 'All folders';
+
+  activeFilter = 'all';
+  document.getElementById('statusFilter').value = 'all';
+  filterTasks();
+}
+
+async function toggleMine() {
+  showMineOnly = !showMineOnly;
+  document.getElementById('fMine').classList.toggle('active', showMineOnly);
+  // Re-fetch tasks: /tasks/mine for my tasks, /tasks for all
+  await loadTasks();
+}
+
+function setFilter(f) {
+  activeFilter = f;
+  document.getElementById('statusFilter').value = f;
+  filterTasks();
+}
+
+function filterTasks() {
+  var q = (document.getElementById('taskSearch').value||'').toLowerCase();
+  var folderF = selectedFolderId;
+  filtered = tasks.filter(function(t) {
+    // Mine filter is handled server-side via /tasks/mine
+    if (activeFilter !== 'all') {
+      var grp = getStatusGroup(t.customStatusId);
+      if (activeFilter === 'Active' && grp !== 'Active') return false;
+      if (activeFilter === 'Completed' && grp !== 'Completed') return false;
+    }
+    if (folderF && !(t.parentIds || []).includes(folderF)) return false;
+    if (q && (t.title||'').toLowerCase().indexOf(q) === -1) return false;
+    return true;
+  });
+  document.getElementById('taskCount').textContent = filtered.length + (filtered.length !== tasks.length ? ' / '+tasks.length : '') + ' tasks';
+  if (activeView === 'list') renderList(); else renderBoard();
+}
+
+function setView(v) {
+  activeView = v;
+  document.getElementById('vList').classList.toggle('active', v==='list');
+  document.getElementById('vBoard').classList.toggle('active', v==='board');
+  document.getElementById('listView').style.display = v==='list' ? '' : 'none';
+  document.getElementById('boardView').classList.toggle('active', v==='board');
+  if (v === 'list') renderList();
+  else if (v === 'board') renderBoard();
+}
+
+function renderList() {
+  if (!filtered.length) {
+    document.getElementById('listView').innerHTML = '<div class="empty">'+(tasks.length ? 'No tasks match filters' : 'No tasks found')+'</div>';
+    return;
+  }
+  var html = '';
+  for (var i=0; i<filtered.length; i++) {
+    var t = filtered[i];
+    var statusName = getStatusName(t.customStatusId);
+    var statusGroup = getStatusGroup(t.customStatusId);
+    var badgeStyle = getStatusColor(t.customStatusId);
+    var assignee = resolveAssignee(t);
+    var due = t.dates && t.dates.due ? fmtDate(t.dates.due) : '';
+    var folderId = (t.parentIds && t.parentIds[0]) || '';
+    var folderName = folderId && folderMap[folderId] ? folderMap[folderId].title : '';
+
+    html += '<div class="task-row" onclick="viewTask(\''+t.id+'\')">'
+      + '<div class="dot '+statusGroup+'"></div>'
+      + '<span class="badge" style="'+badgeStyle+'">'+esc(statusName)+'</span>'
+      + '<span class="task-title">'+esc(t.title)+'</span>'
+      + (folderName ? '<span class="task-folder">'+esc(folderName)+'</span>' : '')
+      + (assignee ? '<span class="task-meta">'+esc(assignee)+'</span>' : '')
+      + (due ? '<span class="task-meta">'+due+'</span>' : '')
+      + '<span class="task-actions">'
+        + (t.permalink ? '<button class="tbtn" onclick="event.stopPropagation();window.open(\''+t.permalink+'\',\'_blank\')">Open</button>' : '')
+        + '<button class="tbtn" onclick="event.stopPropagation();askAI(\''+t.id+'\',\''+esc((t.title||'').replace(/'/g,''))+'\')">Ask AI</button>'
+      + '</span></div>';
+  }
+  document.getElementById('listView').innerHTML = html;
+}
+
+function renderBoard() {
+  var groups = {};
+  filtered.forEach(function(t) {
+    var grp = getStatusGroup(t.customStatusId);
+    if (!groups[grp]) groups[grp] = [];
+    groups[grp].push(t);
+  });
+  // Always show these 4 columns even if empty so you can drop into them
+  var order = ['Active','Completed','Deferred','Cancelled'];
+  Object.keys(groups).forEach(function(g) { if (order.indexOf(g) === -1) order.push(g); });
+
+  var html = '';
+  order.forEach(function(grp) {
+    var items = groups[grp] || [];
+    html += '<div class="board-col" data-group="'+grp+'">'
+      + '<div class="board-hdr">'+grp+' <span class="n">'+items.length+'</span></div>'
+      + '<div class="board-body" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,\''+grp+'\')">';
+    items.forEach(function(t) {
+      var statusName = getStatusName(t.customStatusId);
+      var badgeStyle = getStatusColor(t.customStatusId);
+      var assignee = resolveAssignee(t);
+      var due = t.dates && t.dates.due ? fmtDate(t.dates.due) : '';
+      html += '<div class="board-card" draggable="true" data-task-id="'+t.id+'" onclick="viewTask(\''+t.id+'\')" ondragstart="onDragStart(event,\''+t.id+'\')" ondragend="onDragEnd(event)">'
+        + '<div class="board-card-title">'+esc(t.title)+'</div>'
+        + '<div class="board-card-meta">'
+          + '<span class="badge" style="'+badgeStyle+'">'+esc(statusName)+'</span>'
+          + (assignee ? '<span>'+esc(assignee)+'</span>' : '')
+          + (due ? '<span>'+due+'</span>' : '')
+        + '</div></div>';
+    });
+    if (!items.length) html += '<div style="padding:20px 10px;text-align:center;color:var(--overlay1);font-size:11px;">Drop here</div>';
+    html += '</div></div>';
+  });
+  document.getElementById('boardView').innerHTML = html;
+}
+
+// ── Drag & Drop ──────────────────────────────────────────────────────────────
+var dragTaskId = null;
+
+function onDragStart(e, taskId) {
+  dragTaskId = taskId;
+  e.dataTransfer.effectAllowed = 'move';
+  e.target.classList.add('dragging');
+}
+
+function onDragEnd(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.board-body').forEach(function(c) { c.classList.remove('drag-over'); });
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+async function onDrop(e, targetGroup) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!dragTaskId) return;
+
+  var task = tasks.find(function(t) { return t.id === dragTaskId; });
+  if (!task) return;
+
+  var currentGroup = getStatusGroup(task.customStatusId);
+  if (currentGroup === targetGroup) return; // same column, no change
+
+  // Find a valid customStatusId for the target group
+  var targetStatus = workflowStatuses.find(function(s) { return s.group === targetGroup; });
+  if (!targetStatus) {
+    DevOpsPilot.toast('No workflow status found for "' + targetGroup + '"', 'error');
+    return;
+  }
+
+  // Optimistic UI update
+  task.customStatusId = targetStatus.id;
+  task.status = targetGroup;
+  renderBoard();
+
+  // Send update to Wrike
+  var result = await doApi('PUT', '/tasks/' + dragTaskId, { customStatus: targetStatus.id });
+  if (result.error) {
+    DevOpsPilot.toast('Failed to update: ' + result.error, 'error');
+    await loadTasks(); // reload to revert
+  } else {
+    DevOpsPilot.toast('Moved to ' + targetGroup, 'success');
+  }
+  dragTaskId = null;
+}
+
+// ── Task Detail ──────────────────────────────────────────────────────────────
+var currentTaskId = '';
+var customFieldDefs = null; // cached custom field definitions
+
+async function viewTask(id) {
+  currentTaskId = id;
+  document.getElementById('filterBar').style.display = 'none';
+  document.getElementById('listView').style.display = 'none';
+  document.getElementById('boardView').classList.remove('active');
+  document.getElementById('detailView').classList.add('active');
+  document.getElementById('detailBody').innerHTML = '<div class="empty">Loading...</div>';
+
+  // Fetch task, comments, approvals in parallel
+  var results = await Promise.all([
+    doApi('GET','/tasks/'+id),
+    doApi('GET','/tasks/'+id+'/comments'),
+    doApi('GET','/tasks/'+id+'/approvals'),
+    customFieldDefs ? Promise.resolve(customFieldDefs) : doApi('GET','/customfields')
+  ]);
+  var task = results[0];
+  var comments = Array.isArray(results[1]) ? results[1] : [];
+  var approvals = Array.isArray(results[2]) ? results[2] : [];
+  if (!customFieldDefs && Array.isArray(results[3])) customFieldDefs = results[3];
+
+  if (!task || task.error) {
+    document.getElementById('detailBody').innerHTML = '<div class="empty">Failed to load task'+(task&&task.error?' -- '+esc(task.error):'')+'</div>';
+    return;
+  }
+
+  document.getElementById('detailId').textContent = task.id;
+  var statusName = getStatusName(task.customStatusId);
+  var badgeStyle = getStatusColor(task.customStatusId);
+  var assignees = (task.responsibleIds||[]).map(function(rid){ return contactMap[rid]||rid; });
+  var assigneeStr = assignees.length ? assignees.join(', ') : 'Unassigned';
+  var folderName = '';
+  if (task.parentIds && task.parentIds[0] && folderMap[task.parentIds[0]]) folderName = folderMap[task.parentIds[0]].title;
+
+  var html = '<div class="detail-title">'+esc(task.title)+'</div>';
+
+  // Actions
+  html += '<div class="detail-actions">';
+  html += '<button class="dbtn primary" onclick="sendTaskToAI(\''+task.id+'\')">Start Working</button>';
+  if (task.permalink) html += '<button class="dbtn" onclick="window.open(\''+task.permalink+'\',\'_blank\')">Open in Wrike</button>';
+  html += '<button class="dbtn" onclick="askAI(\''+task.id+'\',\''+esc((task.title||'').replace(/'/g,''))+'\')">Ask AI</button>';
+  html += '</div>';
+
+  // Store full task for sendTaskToAI
+  window._currentWrikeTask = task;
+  window._currentWrikeComments = comments;
+
+  // Fields grid
+  html += '<div class="detail-fields">';
+  html += '<div><div class="df-label">Status</div><div class="df-value"><span class="badge" style="'+badgeStyle+'">'+esc(statusName)+'</span></div></div>';
+  html += '<div><div class="df-label">Importance</div><div class="df-value">'+(task.importance||'--')+'</div></div>';
+  html += '<div><div class="df-label">Assignee</div><div class="df-value">'+esc(assigneeStr)+'</div></div>';
+  html += '<div><div class="df-label">Due Date</div><div class="df-value">'+(task.dates&&task.dates.due?fmtDateFull(task.dates.due):'--')+'</div></div>';
+  html += '<div><div class="df-label">Start Date</div><div class="df-value">'+(task.dates&&task.dates.start?fmtDateFull(task.dates.start):'--')+'</div></div>';
+  html += '<div><div class="df-label">Created</div><div class="df-value">'+(task.createdDate?new Date(task.createdDate).toLocaleDateString():'--')+'</div></div>';
+  html += '<div><div class="df-label">Updated</div><div class="df-value">'+(task.updatedDate?new Date(task.updatedDate).toLocaleDateString():'--')+'</div></div>';
+  if (folderName) html += '<div><div class="df-label">Folder</div><div class="df-value">'+esc(folderName)+'</div></div>';
+  html += '</div>';
+
+  // Custom fields with editable inputs
+  if (task.customFields && task.customFields.length && customFieldDefs) {
+    html += '<div class="detail-section"><div class="detail-section-title">Custom Fields</div><div class="detail-fields">';
+    task.customFields.forEach(function(f) {
+      var def = customFieldDefs.find(function(d){ return d.id === f.id; });
+      var label = def ? def.title : f.id;
+      var type = def ? def.type : 'Text';
+      html += '<div><div class="df-label">'+esc(label)+'</div><div class="df-value">';
+      if (type === 'DropDown' && def && def.settings && def.settings.values) {
+        html += '<select class="cf-input" data-cf-id="'+f.id+'" style="background:var(--surface0);border:1px solid var(--surface1);color:var(--text);padding:3px 6px;border-radius:var(--radius);font:12px var(--font-ui);">';
+        html += '<option value="">--</option>';
+        def.settings.values.forEach(function(v){ html += '<option value="'+esc(v)+'"'+(f.value===v?' selected':'')+'>'+esc(v)+'</option>'; });
+        html += '</select>';
+      } else if (type === 'Checkbox') {
+        html += '<input type="checkbox" class="cf-input" data-cf-id="'+f.id+'"'+(f.value?' checked':'')+'>';
+      } else if (type === 'Numeric' || type === 'Percentage' || type === 'Currency') {
+        html += '<input type="number" class="cf-input" data-cf-id="'+f.id+'" value="'+(f.value||'')+'" style="background:var(--surface0);border:1px solid var(--surface1);color:var(--text);padding:3px 6px;border-radius:var(--radius);font:12px var(--font-ui);width:100px;">';
+      } else if (type === 'Date') {
+        html += '<input type="date" class="cf-input" data-cf-id="'+f.id+'" value="'+(f.value||'')+'" style="background:var(--surface0);border:1px solid var(--surface1);color:var(--text);padding:3px 6px;border-radius:var(--radius);font:12px var(--font-ui);">';
+      } else {
+        html += '<input type="text" class="cf-input" data-cf-id="'+f.id+'" value="'+esc(String(f.value||''))+'" style="background:var(--surface0);border:1px solid var(--surface1);color:var(--text);padding:3px 6px;border-radius:var(--radius);font:12px var(--font-ui);width:100%;">';
+      }
+      html += '</div></div>';
+    });
+    html += '</div><button class="dbtn" onclick="saveCustomFields(\''+id+'\')">Save Custom Fields</button></div>';
+  }
+
+  // Description
+  if (task.description) {
+    html += '<div class="detail-section"><div class="detail-section-title">Description</div><div class="detail-desc">'+task.description+'</div></div>';
+  } else if (task.briefDescription) {
+    html += '<div class="detail-section"><div class="detail-section-title">Description</div><div class="detail-desc">'+esc(task.briefDescription)+'</div></div>';
+  }
+
+  // Approvals
+  if (approvals.length) {
+    html += '<div class="detail-section"><div class="detail-section-title">Approvals ('+approvals.length+')</div>';
+    approvals.forEach(function(a) {
+      var aStatus = a.finished ? (a.status || 'Finished') : 'Pending';
+      var aBadge = aStatus === 'Pending' ? 'background:var(--yellow);color:var(--crust);' : (aStatus === 'Approved' ? 'background:var(--green);color:var(--crust);' : 'background:var(--red);color:var(--crust);');
+      html += '<div style="padding:8px 10px;background:var(--surface0);border-radius:var(--radius);margin-bottom:6px;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><span style="font-size:12px;font-weight:500;">'+esc(a.title||'Approval')+'</span><span class="badge" style="'+aBadge+'">'+aStatus+'</span></div>';
+      if (a.decisions && a.decisions.length) {
+        a.decisions.forEach(function(d) {
+          var approver = contactMap[d.approverId] || d.approverId;
+          var dStatus = d.status || '?';
+          html += '<div style="font-size:11px;color:var(--subtext0);margin-left:12px;">'+esc(approver)+': <strong style="color:'+(dStatus==='Approved'?'var(--green)':'var(--red)')+'">'+dStatus+'</strong>'+(d.comment?' -- '+esc(d.comment):'')+'</div>';
+        });
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Subtasks
+  if (task.subTaskIds && task.subTaskIds.length) {
+    html += '<div class="detail-section"><div class="detail-section-title">Subtasks ('+task.subTaskIds.length+')</div>';
+    task.subTaskIds.forEach(function(sid) {
+      html += '<div class="linked-item" onclick="viewTask(\''+sid+'\')"><div class="dot Active" style="width:6px;height:6px;"></div><span>'+sid+'</span></div>';
+    });
+    html += '</div>';
+  }
+
+  // Attachments
+  if (task.hasAttachments) {
+    html += '<div class="detail-section"><div class="detail-section-title">Attachments</div><div class="attachment">This task has attachments -- open in Wrike to view</div></div>';
+  }
+
+  // Comments
+  html += '<div class="detail-section"><div class="detail-section-title">Comments'+(comments.length?' ('+comments.length+')':'')+'</div>';
+  if (comments.length) {
+    comments.forEach(function(c) {
+      var author = contactMap[c.authorId] || c.authorId || 'Unknown';
+      var date = c.createdDate ? new Date(c.createdDate).toLocaleDateString() : '';
+      html += '<div class="comment"><span class="comment-author">'+esc(author)+'</span><span class="comment-date">'+date+'</span><div class="comment-text">'+(c.text||'')+'</div></div>';
+    });
+  }
+  // Comment input
+  html += '<div style="margin-top:8px;position:relative;">';
+  html += '<input type="text" id="commentInput" placeholder="Add a comment... (type @ to mention)" style="width:100%;background:var(--surface0);border:1px solid var(--surface1);color:var(--text);padding:8px 10px;border-radius:var(--radius);font:12px var(--font-ui);outline:none;" onkeydown="if(event.key===\'Enter\')submitComment(\''+id+'\')" oninput="onCommentInput(this)">';
+  html += '<div id="mentionDropdown" style="display:none;position:absolute;bottom:100%;left:0;right:0;max-height:160px;overflow-y:auto;background:var(--base);border:1px solid var(--overlay0);border-radius:var(--radius);box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:10;"></div>';
+  html += '</div></div>';
+
+  document.getElementById('detailBody').innerHTML = html;
+}
+
+// ── Comment @mention ─────────────────────────────────────────────────────────
+var mentionIdx = -1;
+var mentionMatches = [];
+
+function onCommentInput(el) {
+  var val = el.value;
+  var cursor = el.selectionStart;
+  var before = val.substring(0, cursor);
+  var atPos = before.lastIndexOf('@');
+  var dd = document.getElementById('mentionDropdown');
+
+  if (atPos === -1 || (atPos > 0 && before[atPos-1] !== ' ' && before[atPos-1] !== '\n')) {
+    dd.style.display = 'none'; return;
+  }
+
+  var query = before.substring(atPos + 1).toLowerCase();
+  if (query.indexOf(' ') !== -1) { dd.style.display = 'none'; return; }
+
+  mentionMatches = [];
+  for (var cid in contactMap) {
+    var name = contactMap[cid];
+    if (name.toLowerCase().indexOf(query) !== -1) mentionMatches.push({ id: cid, name: name });
+    if (mentionMatches.length >= 8) break;
+  }
+
+  if (!mentionMatches.length) { dd.style.display = 'none'; return; }
+
+  mentionIdx = 0;
+  renderMentions();
+  dd.style.display = '';
+}
+
+function renderMentions() {
+  var dd = document.getElementById('mentionDropdown');
+  dd.innerHTML = mentionMatches.map(function(m, i) {
+    return '<div style="padding:6px 10px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;'+(i===mentionIdx?'background:var(--surface0);':'')+'" onmousedown="insertMention('+i+')">'
+      + '<div style="width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--crust);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;">'+m.name.charAt(0).toUpperCase()+'</div>'
+      + '<span>'+esc(m.name)+'</span></div>';
+  }).join('');
+}
+
+function insertMention(idx) {
+  var m = mentionMatches[idx];
+  if (!m) return;
+  var el = document.getElementById('commentInput');
+  var val = el.value;
+  var cursor = el.selectionStart;
+  var before = val.substring(0, cursor);
+  var atPos = before.lastIndexOf('@');
+  el.value = val.substring(0, atPos) + '@' + m.name + ' ' + val.substring(cursor);
+  el.selectionStart = el.selectionEnd = atPos + m.name.length + 2;
+  document.getElementById('mentionDropdown').style.display = 'none';
+  el.focus();
+}
+
+async function submitComment(taskId) {
+  var el = document.getElementById('commentInput');
+  var text = el.value.trim();
+  if (!text) return;
+  el.disabled = true;
+  var r = await doApi('POST', '/tasks/' + taskId + '/comments', { text: text });
+  el.disabled = false;
+  if (r.error) { DevOpsPilot.toast('Failed: ' + r.error, 'error'); return; }
+  DevOpsPilot.toast('Comment added', 'success');
+  el.value = '';
+  viewTask(taskId); // refresh
+}
+
+// ── Save Custom Fields ───────────────────────────────────────────────────────
+async function saveCustomFields(taskId) {
+  var inputs = document.querySelectorAll('.cf-input');
+  var fields = [];
+  inputs.forEach(function(el) {
+    var cfId = el.dataset.cfId;
+    var val;
+    if (el.type === 'checkbox') val = el.checked;
+    else if (el.type === 'number') val = el.value ? parseFloat(el.value) : null;
+    else val = el.value;
+    fields.push({ id: cfId, value: val });
+  });
+  var r = await doApi('PUT', '/tasks/' + taskId, { customFields: fields });
+  if (r.error) { DevOpsPilot.toast('Failed: ' + r.error, 'error'); return; }
+  DevOpsPilot.toast('Custom fields saved', 'success');
+}
+
+function closeDetail() {
+  document.getElementById('detailView').classList.remove('active');
+  document.getElementById('filterBar').style.display = '';
+  if (activeView === 'list') document.getElementById('listView').style.display = '';
+  else if (activeView === 'board') document.getElementById('boardView').classList.add('active');
+}
+
+function fmtDateFull(d) {
+  if (!d) return '--';
+  var dt = new Date(d);
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear();
+}
+
+// ── Folder Picker ────────────────────────────────────────────────────────────
+function openFolderPicker() {
+  document.getElementById('folderPickerInput').value = '';
+  renderFolderPicker();
+  document.getElementById('folderPickerOverlay').classList.add('open');
+  setTimeout(function(){ document.getElementById('folderPickerInput').focus(); }, 50);
+}
+function closeFolderPicker() { document.getElementById('folderPickerOverlay').classList.remove('open'); }
+function filterFolderPicker() { renderFolderPicker(); }
+
+function renderFolderPicker() {
+  var q = (document.getElementById('folderPickerInput').value || '').toLowerCase();
+  var items = [{id:'', title:'All folders', count:tasks.length}].concat(folderList);
+  var vis = items.filter(function(f) { return !q || f.title.toLowerCase().indexOf(q) !== -1; });
+  var html = '';
+  for (var i = 0; i < vis.length; i++) {
+    var f = vis[i];
+    var isActive = f.id === selectedFolderId;
+    html += '<div class="picker-item'+(isActive?' active':'')+'" onclick="pickFolder(\''+f.id+'\',\''+esc(f.title).replace(/'/g,'')+'\')">'
+      + '<span>'+esc(f.title)+'</span>'
+      + '<span class="pi-count">'+f.count+'</span>'
+      + '</div>';
+  }
+  if (!html) html = '<div class="empty" style="padding:20px;font-size:12px;">No folders match</div>';
+  document.getElementById('folderPickerList').innerHTML = html;
+}
+
+function pickFolder(id, title) {
+  selectedFolderId = id;
+  selectedFolderName = title || 'All folders';
+  document.getElementById('folderPickerBtn').textContent = selectedFolderName;
+  closeFolderPicker();
+  filterTasks();
+}
+
+// ── Blueprint Picker ─────────────────────────────────────────────────────────
+var blueprintList = [];
+
+async function openBpPicker() {
+  document.getElementById('bpPickerInput').value = '';
+  if (!blueprintList.length) {
+    document.getElementById('bpPickerList').innerHTML = '<div class="empty" style="padding:20px;font-size:12px;">Loading...</div>';
+    document.getElementById('bpPickerOverlay').classList.add('open');
+    var taskBp = await doApi('GET', '/blueprints/tasks');
+    var folderBp = await doApi('GET', '/blueprints/folders');
+    blueprintList = [];
+    if (Array.isArray(taskBp)) taskBp.forEach(function(b) { if (b.title) blueprintList.push({ id: b.id, title: b.title, type: 'Task', permalink: b.permalink }); });
+    if (Array.isArray(folderBp)) folderBp.forEach(function(b) { if (b.title && b.scope === 'FolderBp') blueprintList.push({ id: b.id, title: b.title, type: 'Project', permalink: b.permalink }); });
+  } else {
+    document.getElementById('bpPickerOverlay').classList.add('open');
+  }
+  renderBpPicker();
+  setTimeout(function() { document.getElementById('bpPickerInput').focus(); }, 50);
+}
+
+function closeBpPicker() { document.getElementById('bpPickerOverlay').classList.remove('open'); }
+function filterBpPicker() { renderBpPicker(); }
+
+function renderBpPicker() {
+  var q = (document.getElementById('bpPickerInput').value || '').toLowerCase();
+  var vis = blueprintList.filter(function(b) { return !q || b.title.toLowerCase().indexOf(q) !== -1; });
+  var html = '';
+  for (var i = 0; i < vis.length; i++) {
+    var b = vis[i];
+    html += '<div class="picker-item" onclick="useBlueprintAI(\'' + esc(b.title).replace(/'/g, '') + '\',\'' + b.type + '\')">'
+      + '<span style="font-size:10px;color:var(--overlay1);width:40px;flex-shrink:0;">' + b.type + '</span>'
+      + '<span>' + esc(b.title) + '</span></div>';
+  }
+  if (!html) html = '<div class="empty" style="padding:20px;font-size:12px;">No blueprints match</div>';
+  document.getElementById('bpPickerList').innerHTML = html;
+}
+
+function useBlueprintAI(title, type) {
+  closeBpPicker();
+  DevOpsPilot.askAi('I want to create a ' + type.toLowerCase() + ' from the Wrike blueprint "' + title + '". Ask me which folder/project to create it in, then create it using the Wrike API.');
+}
+
+function askCreateBlueprint() {
+  closeBpPicker();
+  DevOpsPilot.askAi('I want to create a new Wrike blueprint template. Ask me:\n1. What type? (task blueprint or project blueprint)\n2. What name?\n3. What fields/structure should it have?\nThen help me create it.');
+}
+
+// ── Cross-Sync Modal ─────────────────────────────────────────────────────────
+function openSyncModal() { document.getElementById('syncOverlay').classList.add('open'); }
+function closeSyncModal() { document.getElementById('syncOverlay').classList.remove('open'); }
+
+function doSync(option) {
+  closeSyncModal();
+  var prompts = {
+    1: 'I want to create a new task in BOTH Wrike and Azure DevOps, linked to each other.\n\nAsk me for the task title and description. Then:\n1. Create it in Wrike: curl -s -X POST http://127.0.0.1:3800/api/plugins/wrike/tasks -H "Content-Type: application/json" -d \'{"folderId":"FOLDER","title":"...","description":"..."}\'\n2. Create it in ADO: curl -s -X POST http://127.0.0.1:3800/api/workitems/create -H "Content-Type: application/json" -d \'{"type":"Task","title":"...","description":"Linked to Wrike: PERMALINK"}\'\n\nInclude each system\'s link in the other\'s description. Ask for confirmation before creating.',
+    2: 'I want to link an existing Wrike task to a new ADO work item.\n\nFirst show my Wrike tasks:\ncurl -s http://127.0.0.1:3800/api/plugins/wrike/tasks/mine?limit=20\n\nAsk which one I want to sync. Then create an ADO work item with the same title and the Wrike permalink in the description. Ask for confirmation.',
+    3: 'I want to link an existing ADO work item to a new Wrike task.\n\nFirst show my ADO items:\ncurl -s http://127.0.0.1:3800/api/workitems\n\nAsk which one I want to sync. Then ask which Wrike folder to create it in, and create a Wrike task with the ADO link in the description. Ask for confirmation.',
+    4: 'I want to check if any of my tasks exist in both Wrike and Azure DevOps.\n\nFetch both:\n- Wrike: curl -s http://127.0.0.1:3800/api/plugins/wrike/tasks/mine?limit=30\n- ADO: curl -s http://127.0.0.1:3800/api/workitems\n\nCompare titles to find potential matches. Show a table of tasks that might be the same in both systems.',
+  };
+  DevOpsPilot.askAi(prompts[option]);
+}
+
+// ── What's New View ──────────────────────────────────────────────────────────
+async function loadWhatsNew() {
+  var el = document.getElementById('newsView');
+  el.innerHTML = '<div class="empty">Loading recent activity...</div>';
+
+  try {
+    var comments = await doApi('GET', '/comments/recent?limit=30');
+    if (!Array.isArray(comments) || !comments.length) {
+      el.innerHTML = '<div class="empty">No recent activity found</div>';
+      return;
+    }
+
+    var html = '';
+    comments.forEach(function(c) {
+      var author = contactMap[c.authorId] || c.authorId || '?';
+      var date = c.createdDate ? new Date(c.createdDate).toLocaleDateString() : '';
+      var timeAgoStr = c.createdDate ? fmtTimeAgo(new Date(c.createdDate)) : '';
+      var textClean = (c.text || '').replace(/<[^>]*>/g, '');
+
+      html += '<div class="task-row" style="cursor:default;align-items:flex-start;gap:10px;padding:10px 14px;">'
+        + '<div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--crust);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">'+author.charAt(0).toUpperCase()+'</div>'
+        + '<div style="flex:1;min-width:0;">'
+          + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">'
+            + '<span style="font-size:12px;font-weight:500;">'+esc(author)+'</span>'
+            + '<span style="font-size:10px;color:var(--overlay1);">'+timeAgoStr+'</span>'
+          + '</div>'
+          + '<div style="font-size:12px;color:var(--subtext1);line-height:1.5;">'+esc(textClean)+'</div>'
+        + '</div>'
+      + '</div>';
+    });
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<div class="empty">Failed to load activity</div>';
+  }
+}
+
+function fmtTimeAgo(date) {
+  var d = Date.now() - date.getTime(), m = Math.floor(d/60000);
+  if (m < 1) return 'just now'; if (m < 60) return m+'m ago';
+  var h = Math.floor(m/60); if (h < 24) return h+'h ago';
+  var dy = Math.floor(h/24); if (dy < 30) return dy+'d ago';
+  return date.toLocaleDateString();
+}
+
+// ── Status Helpers ───────────────────────────────────────────────────────────
+function getStatusName(id) {
+  if (!id) return 'Unknown';
+  var s = workflowStatuses.find(function(s){ return s.id === id; });
+  return s ? s.name : id;
+}
+function getStatusGroup(id) {
+  if (!id) return 'Active';
+  var s = workflowStatuses.find(function(s){ return s.id === id; });
+  return s ? s.group : 'Active';
+}
+function getStatusColor(id) {
+  var s = workflowStatuses.find(function(x){ return x.id === id; });
+  if (!s) return '';
+  var c = s.color;
+  if (c==='Blue'||c==='DarkCyan') return 'color:var(--blue);background:rgba(137,180,250,0.15);';
+  if (c==='Green'||c==='YellowGreen') return 'color:var(--green);background:rgba(166,227,161,0.15);';
+  if (c==='Red'||c==='Brown') return 'color:var(--red);background:rgba(243,139,168,0.15);';
+  if (c==='Yellow'||c==='Orange') return 'color:var(--yellow);background:rgba(249,226,175,0.15);';
+  if (c==='Purple'||c==='DarkBlue') return 'color:var(--mauve);background:rgba(203,166,247,0.15);';
+  return '';
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+async function sendTaskToAI(taskId) {
+  var task = window._currentWrikeTask;
+  var comments = window._currentWrikeComments || [];
+  if (!task) { DevOpsPilot.toast('No task loaded', 'error'); return; }
+
+  var statusName = getStatusName(task.customStatusId);
+  var assignees = (task.responsibleIds||[]).map(function(rid){ return contactMap[rid]||rid; });
+  var folderName = '';
+  if (task.parentIds && task.parentIds[0] && folderMap[task.parentIds[0]]) folderName = folderMap[task.parentIds[0]].title;
+
+  var lines = [];
+  lines.push('I want to start working on this Wrike task:');
+  lines.push('');
+  lines.push('Title: ' + task.title);
+  lines.push('Status: ' + statusName);
+  lines.push('Importance: ' + (task.importance || '--'));
+  if (assignees.length) lines.push('Assigned to: ' + assignees.join(', '));
+  if (folderName) lines.push('Folder: ' + folderName);
+  if (task.dates && task.dates.due) lines.push('Due: ' + task.dates.due.split('T')[0]);
+  if (task.dates && task.dates.start) lines.push('Start: ' + task.dates.start.split('T')[0]);
+
+  // Description
+  if (task.description) {
+    var desc = task.description.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+    if (desc) lines.push('\nDescription:\n' + desc);
+  } else if (task.briefDescription) {
+    lines.push('\nDescription:\n' + task.briefDescription);
+  }
+
+  // Custom fields
+  if (task.customFields && task.customFields.length && customFieldDefs) {
+    var cfLines = [];
+    task.customFields.forEach(function(f) {
+      if (f.value !== undefined && f.value !== null && f.value !== '') {
+        var def = customFieldDefs.find(function(d){ return d.id === f.id; });
+        var label = def ? def.title : f.id;
+        cfLines.push('  ' + label + ': ' + String(f.value));
+      }
+    });
+    if (cfLines.length) lines.push('\nCustom Fields:\n' + cfLines.join('\n'));
+  }
+
+  // Subtasks
+  if (task.subTaskIds && task.subTaskIds.length) {
+    lines.push('\nSubtasks: ' + task.subTaskIds.length + ' subtask(s)');
+  }
+
+  // Dependencies
+  if (task.dependencyIds && task.dependencyIds.length) {
+    lines.push('Dependencies: ' + task.dependencyIds.length + ' dependency(ies)');
+  }
+
+  // Attachments
+  if (task.hasAttachments) {
+    lines.push('\nThis task has attachments. To view them: curl -s http://127.0.0.1:3800/api/plugins/wrike/tasks/' + taskId + '/attachments');
+  }
+
+  // Comments
+  if (comments.length) {
+    lines.push('\nComments (' + comments.length + '):');
+    comments.forEach(function(c) {
+      var author = contactMap[c.authorId] || c.authorId || 'Unknown';
+      var text = (c.text || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+      lines.push('  [' + author + '] ' + text);
+    });
+  }
+
+  if (task.permalink) lines.push('\nWrike link: ' + task.permalink);
+
+  lines.push('\nPlease review the above and help me work on this task. Start by analyzing what needs to be done and suggest an approach.');
+
+  DevOpsPilot.askAi(lines.join('\n'));
+}
+
+function askAI(id, name) {
+  DevOpsPilot.askAi('Fetch this Wrike task:\ncurl -s http://127.0.0.1:3800/api/plugins/wrike/tasks/'+id+'\n\nShow me "'+name+'" in a readable format. Ask what I want to do -- update status, change dates, add a comment, or reassign.');
+}
+function resolveAssignee(t) {
+  if (!t.responsibleIds || !t.responsibleIds.length) return '';
+  return contactMap[t.responsibleIds[0]] || '';
+}
+function fmtDate(d) {
+  if (!d) return '';
+  var p=d.split('-'), months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[parseInt(p[1])-1]+' '+parseInt(p[2]);
+}
+async function doApi(m,p,b) {
+  try { var o={method:m,headers:{'Content-Type':'application/json'}}; if(b)o.body=JSON.stringify(b); return await(await fetch(API+p,o)).json(); }
+  catch(e) { return {error:e.message}; }
+}
+function esc(s) { var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+DevOpsPilot.on('tabActivated',function(d){if(d.tab&&d.tab.indexOf('wrike')!==-1)init();});
+DevOpsPilot.on('configChanged',function(){init();});
+window.addEventListener('message',function(e){
+  if(!e.data||!e.data.__devopsPilot) return;
+  if(e.data.type==='viewTask'&&e.data.taskId) viewTask(e.data.taskId);
+  if(e.data.type==='applyFilters') {
+    var f = e.data;
+    if (f.mine !== undefined) { showMineOnly = !!f.mine; document.getElementById('fMine').classList.toggle('active', showMineOnly); }
+    if (f.status) setFilter(f.status); else setFilter('all');
+    filterTasks();
+  }
+});
+init();
+</script>
+</body>
+</html>

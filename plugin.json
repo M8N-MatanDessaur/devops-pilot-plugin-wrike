@@ -1,0 +1,30 @@
+{
+  "id": "wrike",
+  "name": "Wrike",
+  "version": "1.0.0",
+  "description": "Manage Wrike tasks, projects, and sprints with AI-powered actions",
+  "icon": "check-square",
+  "tint": "100, 200, 120",
+  "instructions": "instructions.md",
+  "activationConditions": { "always": true },
+  "settings": [
+    {
+      "key": "accessToken",
+      "label": "Access Token",
+      "description": "Wrike permanent access token or OAuth2 access token.",
+      "placeholder": "eyJ0dCI6InAi...",
+      "secret": true
+    }
+  ],
+  "contributions": {
+    "centerTabs": [
+      {
+        "id": "board",
+        "label": "Wrike",
+        "icon": "check-square",
+        "html": "tab.html"
+      }
+    ],
+    "routes": "routes.js"
+  }
+}
