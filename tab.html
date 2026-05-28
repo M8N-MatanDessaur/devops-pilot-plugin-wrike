@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<script src="/plugins/sdk/devops-pilot-sdk.js"></script>
+<script src="/plugins/sdk/symphonee-sdk.js"></script>
 <style>
   * { box-sizing: border-box; }
   ::-webkit-scrollbar { width: 7px; height: 7px; }
@@ -548,7 +548,7 @@ async function onDrop(e, targetGroup) {
   // Find a valid customStatusId for the target group
   var targetStatus = workflowStatuses.find(function(s) { return s.group === targetGroup; });
   if (!targetStatus) {
-    DevOpsPilot.toast('No workflow status found for "' + targetGroup + '"', 'error');
+    Symphonee.toast('No workflow status found for "' + targetGroup + '"', 'error');
     return;
   }
 
@@ -560,10 +560,10 @@ async function onDrop(e, targetGroup) {
   // Send update to Wrike
   var result = await doApi('PUT', '/tasks/' + dragTaskId, { customStatus: targetStatus.id });
   if (result.error) {
-    DevOpsPilot.toast('Failed to update: ' + result.error, 'error');
+    Symphonee.toast('Failed to update: ' + result.error, 'error');
     await loadTasks(); // reload to revert
   } else {
-    DevOpsPilot.toast('Moved to ' + targetGroup, 'success');
+    Symphonee.toast('Moved to ' + targetGroup, 'success');
   }
   dragTaskId = null;
 }
@@ -778,8 +778,8 @@ async function submitComment(taskId) {
   el.disabled = true;
   var r = await doApi('POST', '/tasks/' + taskId + '/comments', { text: text });
   el.disabled = false;
-  if (r.error) { DevOpsPilot.toast('Failed: ' + r.error, 'error'); return; }
-  DevOpsPilot.toast('Comment added', 'success');
+  if (r.error) { Symphonee.toast('Failed: ' + r.error, 'error'); return; }
+  Symphonee.toast('Comment added', 'success');
   el.value = '';
   viewTask(taskId); // refresh
 }
@@ -797,8 +797,8 @@ async function saveCustomFields(taskId) {
     fields.push({ id: cfId, value: val });
   });
   var r = await doApi('PUT', '/tasks/' + taskId, { customFields: fields });
-  if (r.error) { DevOpsPilot.toast('Failed: ' + r.error, 'error'); return; }
-  DevOpsPilot.toast('Custom fields saved', 'success');
+  if (r.error) { Symphonee.toast('Failed: ' + r.error, 'error'); return; }
+  Symphonee.toast('Custom fields saved', 'success');
 }
 
 function closeDetail() {
@@ -889,12 +889,12 @@ function renderBpPicker() {
 
 function useBlueprintAI(title, type) {
   closeBpPicker();
-  DevOpsPilot.askAi('I want to create a ' + type.toLowerCase() + ' from the Wrike blueprint "' + title + '". Ask me which folder/project to create it in, then create it using the Wrike API.');
+  Symphonee.askAi('I want to create a ' + type.toLowerCase() + ' from the Wrike blueprint "' + title + '". Ask me which folder/project to create it in, then create it using the Wrike API.');
 }
 
 function askCreateBlueprint() {
   closeBpPicker();
-  DevOpsPilot.askAi('I want to create a new Wrike blueprint template. Ask me:\n1. What type? (task blueprint or project blueprint)\n2. What name?\n3. What fields/structure should it have?\nThen help me create it.');
+  Symphonee.askAi('I want to create a new Wrike blueprint template. Ask me:\n1. What type? (task blueprint or project blueprint)\n2. What name?\n3. What fields/structure should it have?\nThen help me create it.');
 }
 
 // ── Cross-Sync Modal ─────────────────────────────────────────────────────────
@@ -909,7 +909,7 @@ function doSync(option) {
     3: 'I want to link an existing ADO work item to a new Wrike task.\n\nFirst show my ADO items:\ncurl -s http://127.0.0.1:3800/api/workitems\n\nAsk which one I want to sync. Then ask which Wrike folder to create it in, and create a Wrike task with the ADO link in the description. Ask for confirmation.',
     4: 'I want to check if any of my tasks exist in both Wrike and Azure DevOps.\n\nFetch both:\n- Wrike: curl -s http://127.0.0.1:3800/api/plugins/wrike/tasks/mine?limit=30\n- ADO: curl -s http://127.0.0.1:3800/api/workitems\n\nCompare titles to find potential matches. Show a table of tasks that might be the same in both systems.',
   };
-  DevOpsPilot.askAi(prompts[option]);
+  Symphonee.askAi(prompts[option]);
 }
 
 // ── What's New View ──────────────────────────────────────────────────────────
@@ -983,7 +983,7 @@ function getStatusColor(id) {
 async function sendTaskToAI(taskId) {
   var task = window._currentWrikeTask;
   var comments = window._currentWrikeComments || [];
-  if (!task) { DevOpsPilot.toast('No task loaded', 'error'); return; }
+  if (!task) { Symphonee.toast('No task loaded', 'error'); return; }
 
   var statusName = getStatusName(task.customStatusId);
   var assignees = (task.responsibleIds||[]).map(function(rid){ return contactMap[rid]||rid; });
@@ -1051,11 +1051,11 @@ async function sendTaskToAI(taskId) {
 
   lines.push('\nPlease review the above and help me work on this task. Start by analyzing what needs to be done and suggest an approach.');
 
-  DevOpsPilot.askAi(lines.join('\n'));
+  Symphonee.askAi(lines.join('\n'));
 }
 
 function askAI(id, name) {
-  DevOpsPilot.askAi('Fetch this Wrike task:\ncurl -s http://127.0.0.1:3800/api/plugins/wrike/tasks/'+id+'\n\nShow me "'+name+'" in a readable format. Ask what I want to do -- update status, change dates, add a comment, or reassign.');
+  Symphonee.askAi('Fetch this Wrike task:\ncurl -s http://127.0.0.1:3800/api/plugins/wrike/tasks/'+id+'\n\nShow me "'+name+'" in a readable format. Ask what I want to do -- update status, change dates, add a comment, or reassign.');
 }
 function resolveAssignee(t) {
   if (!t.responsibleIds || !t.responsibleIds.length) return '';
@@ -1072,10 +1072,10 @@ async function doApi(m,p,b) {
 }
 function esc(s) { var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
 
-DevOpsPilot.on('tabActivated',function(d){if(d.tab&&d.tab.indexOf('wrike')!==-1)init();});
-DevOpsPilot.on('configChanged',function(){init();});
+Symphonee.on('tabActivated',function(d){if(d.tab&&d.tab.indexOf('wrike')!==-1)init();});
+Symphonee.on('configChanged',function(){init();});
 window.addEventListener('message',function(e){
-  if(!e.data||!e.data.__devopsPilot) return;
+  if(!e.data||!e.data.__symphonee) return;
   if(e.data.type==='viewTask'&&e.data.taskId) viewTask(e.data.taskId);
   if(e.data.type==='applyFilters') {
     var f = e.data;

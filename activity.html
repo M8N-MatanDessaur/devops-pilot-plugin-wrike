@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<script src="/plugins/sdk/devops-pilot-sdk.js"></script>
+<script src="/plugins/sdk/symphonee-sdk.js"></script>
 <style>
   * { box-sizing: border-box; }
   ::-webkit-scrollbar { width: 7px; }
@@ -71,7 +71,7 @@ async function load() {
 }
 
 function ask(id, name) {
-  DevOpsPilot.askAi('Fetch this Wrike task:\ncurl -s http://127.0.0.1:3800/api/plugins/wrike/tasks/'+id+'\n\nShow me "'+name+'" in a readable format. Ask what I want to do -- update status, change dates, add a comment, or reassign.');
+  Symphonee.askAi('Fetch this Wrike task:\ncurl -s http://127.0.0.1:3800/api/plugins/wrike/tasks/'+id+'\n\nShow me "'+name+'" in a readable format. Ask what I want to do -- update status, change dates, add a comment, or reassign.');
 }
 
 async function doFetch(m, p) { return (await fetch('http://127.0.0.1:3800'+API+p, {method:m, headers:{'Content-Type':'application/json'}})).json(); }
